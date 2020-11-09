@@ -150,7 +150,7 @@ extension NDT7Test {
                                                  geoOptionsChangeInRetray: true,
                                                  useNDT7ServerCache: useNDT7ServerCache, { [weak self] (server, error) in
             guard let strongSelf = self else { return }
-            strongSelf.settings.url.hostname = ""
+            strongSelf.settings.url.hostname = server?.results.first?.machine ?? ""
             strongSelf.settings.url.server = server
             completion(error)
         })

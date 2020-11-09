@@ -62,7 +62,7 @@ public struct NDT7WebSocketConstants {
         public static let urlWithGeoOption = "https://\(hostname)/\(path)?policy=\(geoOption)"
 
         /// Discover closer Mlab Server
-        public static let url = "https://\(hostname)/\(path)"
+        public static let url = "https://locate.measurementlab.net/v2/nearest/ndt/ndt7"
 
         /// Cannot find a suitable mlab server error
         public static let noMlabServerError = NSError(domain: NDT7WebSocketConstants.domain,

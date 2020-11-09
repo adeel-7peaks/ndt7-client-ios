@@ -61,22 +61,22 @@ public struct NDT7URL {
 
     /// Download URL
     public var download: String {
-        return "\(wss ? "wss" : "ws")\("://")\(hostname)\(downloadPath)"
+        return server?.results.first?.urls?.downloadUrl ?? ""
     }
 
     /// Upload URL
     public var upload: String {
-        return "\(wss ? "wss" : "ws")\("://")\(hostname)\(uploadPath)"
+        return server?.results.first?.urls?.uploadUrl ?? ""
     }
 
     /// Initialization.
     public init(hostname: String,
-                downloadPath: String = NDT7WebSocketConstants.Request.downloadPath,
-                uploadPath: String = NDT7WebSocketConstants.Request.uploadPath,
+                downloadPath: String? = nil,
+                uploadPath: String? = nil,
                 wss: Bool = true) {
         self.hostname = hostname
-        self.downloadPath = downloadPath
-        self.uploadPath = uploadPath
+        self.downloadPath = downloadPath ?? ""
+        self.uploadPath = uploadPath ?? ""
         self.wss = wss
     }
 }
@@ -128,11 +128,48 @@ public struct NDT7Server: Codable {
     /// city
     public var city: String?
 
-    /// fqdn
+    /// results.first?.machine
     public var fqdn: String?
 
     /// site
     public var site: String?
+    
+    /// results
+    public var results = [ServerResult]()
+}
+public struct ServerResult: Codable {
+    ///host
+    public var machine: String?
+    
+    /// location
+    public var location = Location()
+    
+    public var urls: URLs?
+}
+
+public struct Location: Codable {
+    public var city: String?
+    public var country: String?
+}
+
+public struct URLs: Codable {
+    public var uploadUrl: String?
+    public var downloadUrl: String?
+    
+    enum Keys: String, CodingKey {
+        case upload = "wss:///ndt/v7/upload"
+        case download = "wss:///ndt/v7/download"
+    }
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: Keys.self)
+        try container.encode(uploadUrl, forKey: .upload)
+        try container.encode(downloadUrl, forKey: .download)
+    }
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: Keys.self)
+        uploadUrl = try values.decodeIfPresent(String.self, forKey: .upload)
+        downloadUrl = try values.decodeIfPresent(String.self, forKey: .download)
+    }
 }
 
 /// This extension provides helper methods to discover Mlab servers availables.
@@ -173,15 +210,15 @@ extension NDT7Server {
                                      completion)
                     }
                 } else if retray == 0, useNDT7ServerCache, let server = lastServer {
-                    logNDT7("NDT7 Mlab server \(server.fqdn!)\(error == nil ? "" : " error: \(error!.localizedDescription)")", .info)
-                    completion(server, server.fqdn == nil ? NDT7WebSocketConstants.MlabServerDiscover.noMlabServerError : nil)
+                    logNDT7("NDT7 Mlab server \(String(describing: server.results.first?.machine!))\(error == nil ? "" : " error: \(error!.localizedDescription)")", .info)
+                    completion(server, server.results.first?.machine == nil ? NDT7WebSocketConstants.MlabServerDiscover.noMlabServerError : nil)
                 }
                 return
             }
-            if let server = decode(data: data, fromUrl: request.url?.absoluteString), server.fqdn != nil  && server.fqdn! != "" {
+            if let server = decode(data: data, fromUrl: request.url?.absoluteString), server.results.first?.machine != nil  && server.results.first?.machine! != "" {
                 lastServer = server
-                logNDT7("NDT7 Mlab server \(server.fqdn!)\(error == nil ? "" : " error: \(error!.localizedDescription)")", .info)
-                completion(server, server.fqdn == nil ? NDT7WebSocketConstants.MlabServerDiscover.noMlabServerError : nil)
+                logNDT7("NDT7 Mlab server \(String(describing: server.results.first?.machine!))\(error == nil ? "" : " error: \(error!.localizedDescription)")", .info)
+                completion(server, server.results.first?.machine == nil ? NDT7WebSocketConstants.MlabServerDiscover.noMlabServerError : nil)
             } else if retray > 0 {
                 logNDT7("NDT7 Mlab cannot find a suitable mlab server, retray: \(retray)", .info)
                 DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
@@ -193,8 +230,8 @@ extension NDT7Server {
                                  completion)
                 }
             } else if retray == 0, useNDT7ServerCache, let server = lastServer {
-                logNDT7("NDT7 Mlab server \(server.fqdn!)\(error == nil ? "" : " error: \(error!.localizedDescription)")", .info)
-                completion(server, server.fqdn == nil ? NDT7WebSocketConstants.MlabServerDiscover.noMlabServerError : nil)
+                logNDT7("NDT7 Mlab server \(String(describing: server.results.first?.machine!))\(error == nil ? "" : " error: \(error!.localizedDescription)")", .info)
+                completion(server, server.results.first?.machine == nil ? NDT7WebSocketConstants.MlabServerDiscover.noMlabServerError : nil)
             } else {
                 logNDT7("NDT7 Mlab cannot find a suitable mlab server, retray: \(retray)", .info)
                 completion(nil, NDT7WebSocketConstants.MlabServerDiscover.noMlabServerError)
@@ -212,7 +249,7 @@ extension NDT7Server {
         case NDT7WebSocketConstants.MlabServerDiscover.urlWithGeoOption:
             let decoded = try? JSONDecoder().decode([NDT7Server].self, from: data)
             let server = decoded?.first(where: { (server) -> Bool in
-                return server.fqdn != nil && !server.fqdn!.isEmpty
+                return server.results.first?.machine != nil && !(server.results.first?.machine!.isEmpty)!
             })
             return server
         default:
